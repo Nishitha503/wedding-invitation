@@ -449,20 +449,6 @@ END:VCALENDAR`;
 
   // 5.5. Wedding Wishes Wall Logic (with Realtime Firebase Cloud Sync)
   initWishesWall() {
-    // Force clear all existing wishes from local storage and cloud database once
-    if (!localStorage.getItem('wedding_wishes_cleared_v4')) {
-      try {
-        localStorage.setItem('wedding_wishes', '[]');
-        localStorage.setItem('wedding_wish_likes', '{}');
-        localStorage.setItem('wedding_wishes_cleared_v4', 'true');
-      } catch (e) {}
-      if (typeof WeddingFirebase !== 'undefined') {
-        const db = WeddingFirebase.getDatabase();
-        if (db) {
-          try { db.ref('wishes').remove(); } catch (e) {}
-        }
-      }
-    }
 
     const defaultWishes = [];
 

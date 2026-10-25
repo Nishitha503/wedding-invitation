@@ -9,22 +9,23 @@ const WeddingFirebase = (function () {
 
   // Get active config: from localStorage or default template
   function getConfig() {
+    // Default configuration: active Firebase Realtime Database
+    const DEFAULT_CONFIG = {
+      databaseURL: "https://wedding-tharaka-sashini-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "wedding-tharaka-sashini"
+    };
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && (parsed.databaseURL || parsed.apiKey)) {
+        if (parsed && parsed.databaseURL && !parsed.databaseURL.includes('wedding-invitation-tharaka')) {
           return parsed;
         }
       }
     } catch (e) {}
 
-    // Default configuration template
-    // Replace with your Firebase Realtime Database URL
-    return {
-      databaseURL: "https://wedding-invitation-tharaka-default-rtdb.firebaseio.com",
-      projectId: "wedding-invitation-tharaka"
-    };
+    return DEFAULT_CONFIG;
   }
 
   function saveConfig(cfg) {
