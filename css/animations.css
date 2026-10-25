@@ -1,0 +1,154 @@
+/* ==========================================================================
+   PEARL EDIT - LUXURY WEDDING ANIMATIONS & MICRO-INTERACTIONS
+   ========================================================================== */
+
+/* Shimmering Gold & Pearl Luster */
+@keyframes pearlShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.shimmer-gold {
+  background: linear-gradient(
+    90deg,
+    #8c6d3b 0%,
+    #e8d3b0 25%,
+    #684d22 50%,
+    #dfc89d 75%,
+    #8c6d3b 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: pearlShimmer 6s linear infinite;
+}
+
+/* Pulsing Wax Monogram Seal */
+@keyframes sealPulse {
+  0% {
+    box-shadow: 0 8px 24px rgba(110, 84, 40, 0.35), 0 0 15px rgba(212, 175, 55, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 12px 32px rgba(110, 84, 40, 0.5), 0 0 28px rgba(212, 175, 55, 0.6);
+    transform: scale(1.04);
+  }
+  100% {
+    box-shadow: 0 8px 24px rgba(110, 84, 40, 0.35), 0 0 15px rgba(212, 175, 55, 0.3);
+    transform: scale(1);
+  }
+}
+
+.wax-seal-circle {
+  animation: sealPulse 3.5s infinite ease-in-out;
+}
+
+/* Gentle Floating Frame */
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.6deg);
+  }
+}
+
+.float-animation {
+  animation: floatGentle 5s ease-in-out infinite;
+}
+
+/* Second Ticking Pulse */
+@keyframes secPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+    border-color: var(--gold-light);
+  }
+}
+
+.countdown-box.pulse-sec {
+  animation: secPulse 1s ease-in-out infinite;
+}
+
+/* Fade In On Scroll */
+.fade-in-element {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.8s cubic-bezier(0.22, 0.61, 0.36, 1), transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.fade-in-element.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Ambient Sparkle Dust */
+@keyframes sparkleFloat {
+  0% {
+    transform: translateY(0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-100px) scale(1) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+.sparkle-particle {
+  position: absolute;
+  pointer-events: none;
+  background: radial-gradient(circle, #fff7ea 20%, #e2be87 80%, transparent 100%);
+  border-radius: 50%;
+  animation: sparkleFloat 4s infinite ease-in-out;
+}
+
+/* Heart Burst Animation */
+@keyframes heartBurst {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35) rotate(-8deg);
+  }
+  75% {
+    transform: scale(0.95) rotate(4deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Wish Card Entry */
+@keyframes wishCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Toast Slide Up */
+@keyframes toastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
