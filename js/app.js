@@ -39,9 +39,18 @@ class WeddingApp {
     }
 
     const letterGuestSalutation = document.getElementById('letter-guest-salutation');
+    const letterBodyEl = document.getElementById('letter-content-text');
     const rsvpNoteEl = document.getElementById('rsvp-display-guest-note');
     const rsvpNameInput = document.getElementById('rsvp-name');
     const wishNameInput = document.getElementById('wish-name');
+
+    if (letterBodyEl) {
+      letterBodyEl.innerHTML = `
+        <p>With hearts full of love and happiness, we’re delighted to invite you to celebrate the wedding that marks the beginning of our journey together. 🤍</p>
+        <p>It would truly mean the world to us to have you by our side on this very special day.</p>
+        <p>We can’t wait to celebrate, share laughter, and create beautiful memories with you! ✨</p>
+      `;
+    }
 
     if (WeddingState.guestName) {
       if (letterGuestSalutation) letterGuestSalutation.textContent = `Dear ${WeddingState.guestName} 🌸`;
@@ -438,15 +447,21 @@ END:VCALENDAR`;
     }
   }
 
-  // 5.5. Wedding Wishes Wall Logic
+  // 5.5. Wedding Wishes Wall Logic (with Realtime Firebase Cloud Sync)
   initWishesWall() {
-    // Clear demo/sample wishes once to ensure clean slate
-    if (!localStorage.getItem('wedding_wishes_cleared_v2')) {
+    // Force clear all existing wishes from local storage and cloud database once
+    if (!localStorage.getItem('wedding_wishes_cleared_v4')) {
       try {
         localStorage.setItem('wedding_wishes', '[]');
         localStorage.setItem('wedding_wish_likes', '{}');
-        localStorage.setItem('wedding_wishes_cleared_v2', 'true');
+        localStorage.setItem('wedding_wishes_cleared_v4', 'true');
       } catch (e) {}
+      if (typeof WeddingFirebase !== 'undefined') {
+        const db = WeddingFirebase.getDatabase();
+        if (db) {
+          try { db.ref('wishes').remove(); } catch (e) {}
+        }
+      }
     }
 
     const defaultWishes = [];
@@ -456,10 +471,11 @@ END:VCALENDAR`;
         const stored = localStorage.getItem('wedding_wishes');
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) return parsed;
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
         }
       } catch (e) {}
-      localStorage.setItem('wedding_wishes', JSON.stringify([]));
       return [];
     };
 
@@ -588,6 +604,7 @@ END:VCALENDAR`;
           if (!targetWish) return;
 
           const currentLiked = getLikedMap();
+          let isNowLiked = false;
           if (currentLiked[wishId]) {
             targetWish.likes = Math.max(0, (targetWish.likes || 1) - 1);
             delete currentLiked[wishId];
@@ -597,6 +614,7 @@ END:VCALENDAR`;
           } else {
             targetWish.likes = (targetWish.likes || 0) + 1;
             currentLiked[wishId] = true;
+            isNowLiked = true;
             btn.classList.add('liked');
             btn.classList.add('animating');
             setTimeout(() => btn.classList.remove('animating'), 500);
@@ -610,12 +628,77 @@ END:VCALENDAR`;
           saveWishes(currentWishes);
           saveLikedMap(currentLiked);
 
+          // Sync likes to Firebase if available
+          if (typeof WeddingFirebase !== 'undefined') {
+            const db = WeddingFirebase.getDatabase();
+            if (db) {
+              try {
+                db.ref('wishes/' + wishId + '/likes').transaction(curr => {
+                  return Math.max(0, (curr || 0) + (isNowLiked ? 1 : -1));
+                });
+              } catch (err) {}
+            }
+          }
+
           let updatedLikes = 0;
           currentWishes.forEach(w => { updatedLikes += (w.likes || 0); });
           if (organizerTotalLikes) organizerTotalLikes.textContent = updatedLikes;
         });
       });
     };
+
+    // Firebase Realtime Listener
+    if (typeof WeddingFirebase !== 'undefined') {
+      const db = WeddingFirebase.getDatabase();
+      if (db) {
+        try {
+          const wishesRef = db.ref('wishes');
+          wishesRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            let onlineWishes = [];
+            if (data) {
+              if (Array.isArray(data)) {
+                onlineWishes = data.filter(Boolean);
+              } else if (typeof data === 'object') {
+                onlineWishes = Object.keys(data).map(k => ({
+                  ...data[k],
+                  id: data[k].id || k
+                }));
+              }
+            }
+
+            if (onlineWishes.length > 0) {
+              // Automatically remove any legacy seed wishes
+              onlineWishes.forEach(w => {
+                if (w.id && w.id.startsWith('wish_seed_')) {
+                  try { db.ref('wishes/' + w.id).remove(); } catch (e) {}
+                }
+              });
+              const cleanedOnline = onlineWishes.filter(w => !w.id || !w.id.startsWith('wish_seed_'));
+              cleanedOnline.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+              saveWishes(cleanedOnline);
+            } else {
+              saveWishes([]);
+            }
+
+            renderWishes();
+            if (typeof this.renderOrganizerWishes === 'function') {
+              this.renderOrganizerWishes();
+            }
+          }, (err) => {
+            console.warn('[Wishes] Firebase listen notice:', err);
+            renderWishes();
+          });
+        } catch (e) {
+          console.warn('[Wishes] Firebase attach error:', e);
+          renderWishes();
+        }
+      } else {
+        renderWishes();
+      }
+    } else {
+      renderWishes();
+    }
 
     // Character Counter
     const messageInput = document.getElementById('wish-message');
@@ -700,6 +783,18 @@ END:VCALENDAR`;
         currentWishes.unshift(newWish);
         saveWishes(currentWishes);
 
+        // Sync to Firebase Realtime Database
+        if (typeof WeddingFirebase !== 'undefined') {
+          const db = WeddingFirebase.getDatabase();
+          if (db) {
+            try {
+              db.ref('wishes/' + newWish.id).set(newWish).catch(err => {
+                console.warn('[Wishes] Firebase write error:', err);
+              });
+            } catch (err) {}
+          }
+        }
+
         const likedMap = getLikedMap();
         likedMap[newWish.id] = true;
         saveLikedMap(likedMap);
@@ -761,6 +856,12 @@ END:VCALENDAR`;
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         if (confirm('Are you sure you want to clear all wishes from the wall?')) {
+          if (typeof WeddingFirebase !== 'undefined') {
+            const db = WeddingFirebase.getDatabase();
+            if (db) {
+              try { db.ref('wishes').remove(); } catch (e) {}
+            }
+          }
           localStorage.setItem('wedding_wishes', JSON.stringify([]));
           localStorage.setItem('wedding_wish_likes', '{}');
           renderWishes();
@@ -815,10 +916,10 @@ END:VCALENDAR`;
 
       const waMessage = 
         `${salutation}\n\n` +
-        `With so much love and happiness in our hearts, we're excited to invite you to celebrate the Wedding of our journey together.\n\n` +
-        `It would truly mean the world to us to have you with us on this special day 🤍\n\n` +
+        `With hearts full of love and happiness, we’re delighted to invite you to celebrate the wedding that marks the beginning of our journey together. 🤍\n\n` +
+        `It would truly mean the world to us to have you by our side on this very special day.\n\n` +
         `Wedding Invitation:\n${targetUrl}\n\n` +
-        `We can't wait to celebrate, laugh, and create beautiful memories with you!\n\n` +
+        `We can’t wait to celebrate, share laughter, and create beautiful memories with you! ✨\n\n` +
         `With love,\nTharaka & Sashini 🤍`;
 
       return { guestName, targetUrl, salutation, waMessage };
@@ -1016,10 +1117,10 @@ END:VCALENDAR`;
 
       const waMessage = 
         `${salutation}\n\n` +
-        `With so much love and happiness in our hearts, we're excited to invite you to celebrate the Wedding of our journey together.\n\n` +
-        `It would truly mean the world to us to have you with us on this special day 🤍\n\n` +
+        `With hearts full of love and happiness, we’re delighted to invite you to celebrate the wedding that marks the beginning of our journey together. 🤍\n\n` +
+        `It would truly mean the world to us to have you by our side on this very special day.\n\n` +
         `Wedding Invitation:\n${targetUrl}\n\n` +
-        `We can't wait to celebrate, laugh, and create beautiful memories with you!\n\n` +
+        `We can’t wait to celebrate, share laughter, and create beautiful memories with you! ✨\n\n` +
         `With love,\nTharaka & Sashini 🤍`;
 
       return { guestName, targetUrl, salutation, waMessage };
@@ -1190,6 +1291,48 @@ END:VCALENDAR`;
     if (tabCount) tabCount.textContent = storedWishes.length;
     if (totalLikesNum) totalLikesNum.textContent = totalLikes;
 
+    // Firebase Cloud Database URL config in Organizer Dashboard
+    const dbUrlInput = document.getElementById('firebase-db-url-input');
+    const saveDbBtn = document.getElementById('save-firebase-config-btn');
+    const cloudStatusBadge = document.getElementById('organizer-cloud-status-badge');
+
+    if (typeof WeddingFirebase !== 'undefined') {
+      const cfg = WeddingFirebase.getConfig();
+      if (dbUrlInput && cfg && cfg.databaseURL && !dbUrlInput.value) {
+        dbUrlInput.value = cfg.databaseURL;
+      }
+      if (cloudStatusBadge) {
+        const isOnline = WeddingFirebase.getStatus() === 'connected';
+        cloudStatusBadge.textContent = isOnline ? '🟢 Live Sync Active' : '🟡 Local Mode';
+        cloudStatusBadge.style.color = isOnline ? '#2e7d32' : '#b27b16';
+        cloudStatusBadge.style.background = isOnline ? 'rgba(46, 125, 50, 0.15)' : 'rgba(216, 155, 35, 0.15)';
+      }
+
+      if (saveDbBtn && !saveDbBtn.dataset.bound) {
+        saveDbBtn.dataset.bound = 'true';
+        saveDbBtn.addEventListener('click', () => {
+          const val = dbUrlInput ? dbUrlInput.value.trim() : '';
+          if (val) {
+            WeddingFirebase.saveConfig({ databaseURL: val });
+            WeddingFirebase.init();
+            const toast = document.getElementById('firebase-save-toast');
+            if (toast) {
+              toast.style.display = 'inline';
+              setTimeout(() => { toast.style.display = 'none'; }, 3500);
+            }
+            if (cloudStatusBadge) {
+              cloudStatusBadge.textContent = '🟢 Live Sync Active';
+              cloudStatusBadge.style.color = '#2e7d32';
+              cloudStatusBadge.style.background = 'rgba(46, 125, 50, 0.15)';
+            }
+            if (typeof this.initWishesWall === 'function') {
+              this.initWishesWall();
+            }
+          }
+        });
+      }
+    }
+
     if (!listEl) return;
 
     if (storedWishes.length === 0) {
@@ -1209,7 +1352,7 @@ END:VCALENDAR`;
           </div>
           <div class="organizer-wish-text">"${this.escapeHtml(w.message)}"</div>
         </div>
-        <button type="button" class="btn-delete-wish" data-wish-idx="${idx}" title="Delete this message">
+        <button type="button" class="btn-delete-wish" data-wish-id="${this.escapeHtml(w.id || '')}" data-wish-idx="${idx}" title="Delete this message">
           ✕ Delete
         </button>
       </div>
@@ -1218,7 +1361,14 @@ END:VCALENDAR`;
     listEl.querySelectorAll('.btn-delete-wish').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-wish-idx'), 10);
+        const wishId = btn.getAttribute('data-wish-id');
         if (confirm('Delete this wish from the wall?')) {
+          if (wishId && typeof WeddingFirebase !== 'undefined') {
+            const db = WeddingFirebase.getDatabase();
+            if (db) {
+              try { db.ref('wishes/' + wishId).remove(); } catch (e) {}
+            }
+          }
           storedWishes.splice(idx, 1);
           localStorage.setItem('wedding_wishes', JSON.stringify(storedWishes));
           this.renderOrganizerWishes();
