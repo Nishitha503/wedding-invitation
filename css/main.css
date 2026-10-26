@@ -362,7 +362,7 @@ img {
 /* The Letter / Card Inside (Prominently in Front) */
 .envelope-letter-card {
   position: relative;
-  z-index: 4; /* Card is on top so Tharaka & Sashini names are 100% visible! */
+  z-index: 4; /* Card is on top so Sashini & Tharaka names are 100% visible! */
   margin: 1.6rem 1.4rem 0.6rem;
   padding: 2.4rem 1.8rem 2.2rem;
   background: 
@@ -2858,8 +2858,120 @@ section {
 }
 
 .rsvp-table td {
-  padding: 0.6rem 0.8rem;
+  padding: 0.65rem 0.8rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  vertical-align: middle;
+}
+
+.rsvp-table tr:hover {
+  background: rgba(120, 82, 164, 0.03);
+}
+
+.badge-accepted {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.25);
+  border-radius: 12px;
+  padding: 0.15rem 0.55rem;
+  font-weight: 600;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.badge-declined {
+  background: rgba(198, 40, 40, 0.1);
+  color: #c62828;
+  border: 1px solid rgba(198, 40, 40, 0.22);
+  border-radius: 12px;
+  padding: 0.15rem 0.55rem;
+  font-weight: 600;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.badge-count {
+  background: rgba(120, 82, 164, 0.1);
+  color: #7852a4;
+  border: 1px solid rgba(120, 82, 164, 0.22);
+  border-radius: 12px;
+  padding: 0.15rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.table-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.76rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.table-contact-link.wa-link {
+  color: #1e7e34;
+  background: rgba(37, 211, 102, 0.12);
+  border: 1px solid rgba(37, 211, 102, 0.25);
+}
+
+.table-contact-link.wa-link:hover {
+  background: #25d366;
+  color: #fff;
+}
+
+.table-contact-link.call-link {
+  color: #3b6b49;
+  background: rgba(59, 107, 73, 0.1);
+  border: 1px solid rgba(59, 107, 73, 0.2);
+}
+
+.table-contact-link.call-link:hover {
+  background: #3b6b49;
+  color: #fff;
+}
+
+
+.btn-rsvp-action {
+  background: none;
+  border: 1px solid var(--border-gold);
+  border-radius: 6px;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.btn-rsvp-action.btn-view-rsvp:hover {
+  background: var(--gold-light);
+  color: #fff;
+  border-color: var(--gold-light);
+}
+
+.btn-rsvp-action.btn-del-rsvp {
+  color: #c62828;
+  border-color: rgba(198, 40, 40, 0.25);
+}
+
+.btn-rsvp-action.btn-del-rsvp:hover {
+  background: #c62828;
+  color: #fff;
+}
+
+.rsvp-filter-btn.active {
+  background: var(--gold-light) !important;
+  color: #fff !important;
+  border-color: var(--gold-light) !important;
 }
 
 /* ==========================================================================

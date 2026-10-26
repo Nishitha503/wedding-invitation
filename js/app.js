@@ -1,14 +1,14 @@
 /**
  * Digital Wedding Invitation Application Logic
- * Couple: Tharaka & Sashini | Date: November 27, 2026
+ * Couple: Sashini & Tharaka | Date: November 27, 2026
  * Venue: Hotel Green Court, Homagama
  */
 
 // Global State
 const WeddingState = {
   weddingDate: new Date('2026-11-27T10:06:00+05:30'),
-  groomName: 'Tharaka',
   brideName: 'Sashini',
+  groomName: 'Tharaka',
   venue: 'Hotel Green Court, Homagama',
   guestName: '',
   adminPin: localStorage.getItem('wedding_admin_pin') || '1234'
@@ -16,6 +16,8 @@ const WeddingState = {
 
 class WeddingApp {
   constructor() {
+    this.rsvpFilterStatus = 'all';
+    this.rsvpSearchQuery = '';
     this.initGuestPersonalization();
     this.initHostMode();
     this.initEnvelope();
@@ -245,9 +247,9 @@ class WeddingApp {
 
     // Google Calendar URL
     if (googleBtn) {
-      const title = encodeURIComponent("Wedding of Tharaka & Sashini");
+      const title = encodeURIComponent("Wedding of Sashini & Tharaka");
       const details = encodeURIComponent(
-        "We cordially invite you to celebrate the wedding ceremony of Tharaka & Sashini on Friday, November 27, 2026 at Hotel Green Court, Homagama.\n\n" +
+        "We cordially invite you to celebrate the wedding ceremony of Sashini & Tharaka on Friday, November 27, 2026 at Hotel Green Court, Homagama.\n\n" +
         "• 10:06 AM: Poruwa Ceremony\n\n" +
         "We can't wait to celebrate with you!"
       );
@@ -264,12 +266,12 @@ class WeddingApp {
         const icsContent = 
 `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Tharaka & Sashini Wedding//EN
+PRODID:-//Sashini & Tharaka Wedding//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-SUMMARY:Wedding of Tharaka & Sashini
-DESCRIPTION:Join us for the wedding of Tharaka & Sashini at Hotel Green Court, Homagama. Poruwa Ceremony starts at 10:06 AM.
+SUMMARY:Wedding of Sashini & Tharaka
+DESCRIPTION:Join us for the wedding of Sashini & Tharaka at Hotel Green Court, Homagama. Poruwa Ceremony starts at 10:06 AM.
 LOCATION:Hotel Green Court, Homagama, Sri Lanka
 DTSTART:20261127T043600Z
 DTEND:20261127T110000Z
@@ -280,7 +282,7 @@ END:VCALENDAR`;
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const link = document.createElement('a');
         link.href = window.URL.createObjectURL(blob);
-        link.setAttribute('download', 'Tharaka_Sashini_Wedding.ics');
+        link.setAttribute('download', 'Sashini_Tharaka_Wedding.ics');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -344,19 +346,53 @@ END:VCALENDAR`;
       });
     }
 
+    // Toggle headcount group based on attendance selection
+    const attendingRadios = form ? form.querySelectorAll('input[name="attending"]') : [];
+    const headcountGroup = document.getElementById('headcount-group');
+    attendingRadios.forEach(r => {
+      r.addEventListener('change', () => {
+        if (headcountGroup) {
+          headcountGroup.style.display = r.value === 'yes' ? 'block' : 'none';
+        }
+      });
+    });
+
     const saveAndShowSuccess = (name, contact, attending, guestCount) => {
+      const rsvpId = 'rsvp_' + Date.now();
       const rsvpData = {
-        name,
-        contact,
-        attending,
-        guestCount,
-        time: new Date().toLocaleDateString()
+        id: rsvpId,
+        name: (name || '').trim(),
+        contact: (contact || '').trim(),
+        attending: attending,
+        guestCount: attending === 'yes' ? parseInt(guestCount || '1', 10) : 0,
+        time: new Date().toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        timestamp: Date.now()
       };
 
       // Save to localStorage
       const existing = JSON.parse(localStorage.getItem('wedding_rsvps') || '[]');
       existing.unshift(rsvpData);
       localStorage.setItem('wedding_rsvps', JSON.stringify(existing));
+
+      // Sync to Firebase Realtime Database (Real-time cloud sync for organizer)
+      if (typeof WeddingFirebase !== 'undefined') {
+        const db = WeddingFirebase.getDatabase();
+        if (db) {
+          try {
+            db.ref('rsvps/' + rsvpId).set(rsvpData).catch(err => {
+              console.warn('[RSVP] Firebase write error:', err);
+            });
+          } catch (e) {
+            console.warn('[RSVP] Firebase save error:', e);
+          }
+        }
+      }
 
       if (form) form.style.display = 'none';
       if (successBadge) {
@@ -372,7 +408,7 @@ END:VCALENDAR`;
       // Prepare WhatsApp message
       const isYes = attending === 'yes';
       const waText = encodeURIComponent(
-        `Dear Tharaka & Sashini 🤍\n\n` +
+        `Dear Sashini & Tharaka 🤍\n\n` +
         `*Wedding RSVP Confirmation*\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         `• Guest Name: ${name}\n` +
@@ -433,6 +469,50 @@ END:VCALENDAR`;
         if (successBadge) successBadge.style.display = 'none';
         if (form) form.style.display = 'block';
       });
+    }
+
+    // Firebase Realtime Listener for RSVPs (Syncs all guest submissions to organizer)
+    if (typeof WeddingFirebase !== 'undefined') {
+      const db = WeddingFirebase.getDatabase();
+      if (db) {
+        try {
+          db.ref('rsvps').on('value', (snapshot) => {
+            const data = snapshot.val();
+            let cloudRsvps = [];
+            if (data) {
+              if (Array.isArray(data)) {
+                cloudRsvps = data.filter(Boolean);
+              } else if (typeof data === 'object') {
+                cloudRsvps = Object.keys(data).map(k => ({
+                  ...data[k],
+                  id: data[k].id || k
+                }));
+              }
+            }
+
+            if (cloudRsvps.length > 0) {
+              cloudRsvps.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+              localStorage.setItem('wedding_rsvps', JSON.stringify(cloudRsvps));
+            } else if (!localStorage.getItem('wedding_rsvps')) {
+              localStorage.setItem('wedding_rsvps', JSON.stringify([]));
+            }
+
+            const cloudBadge = document.getElementById('organizer-rsvp-cloud-status');
+            if (cloudBadge) {
+              cloudBadge.innerHTML = '<span class="live-dot pulse" style="background: #2e7d32;"></span> Live Cloud Sync Active';
+              cloudBadge.style.color = '#2e7d32';
+            }
+
+            if (typeof this.renderRsvpDashboard === 'function') {
+              this.renderRsvpDashboard();
+            }
+          }, (err) => {
+            console.warn('[RSVP] Firebase listen notice:', err);
+          });
+        } catch (e) {
+          console.warn('[RSVP] Firebase listen attach error:', e);
+        }
+      }
     }
 
     // Auto sync guest name from RSVP to Wishes Wall
@@ -537,7 +617,7 @@ END:VCALENDAR`;
               <strong>${activeFilter === 'all' ? 'The celebration wall is waiting for its first blessing!' : `No wishes under "${this.escapeHtml(activeFilter)}" yet.`}</strong>
             </p>
             <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.55;">
-              Be the very first guest to send your love, advice, and blessings to Tharaka &amp; Sashini. 🤍✨
+              Be the very first guest to send your love, advice, and blessings to Sashini &amp; Tharaka. 🤍✨
             </p>
           </div>
         `;
@@ -819,11 +899,11 @@ END:VCALENDAR`;
 
         if (!name) name = WeddingState.guestName || 'Well-Wisher';
         if (!message) {
-          message = "Wishing Tharaka & Sashini eternal happiness, infinite love, and boundless blessings on your wedding day! 🥂✨";
+          message = "Wishing Sashini & Tharaka eternal happiness, infinite love, and boundless blessings on your wedding day! 🥂✨";
         }
 
         const waText = 
-          `Dear Tharaka & Sashini 🤍\n\n` +
+          `Dear Sashini & Tharaka 🤍\n\n` +
           `*Wedding Wishes & Blessings*\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `• From: ${name} (${relation})\n` +
@@ -906,7 +986,7 @@ END:VCALENDAR`;
         `It would truly mean the world to us to have you by our side on this very special day.\n\n` +
         `Wedding Invitation:\n${targetUrl}\n\n` +
         `We can’t wait to celebrate, share laughter, and create beautiful memories with you! ✨\n\n` +
-        `With love,\nTharaka & Sashini 🤍`;
+        `With love,\nSashini & Tharaka 🤍`;
 
       return { guestName, targetUrl, salutation, waMessage };
     };
@@ -1074,6 +1154,41 @@ END:VCALENDAR`;
       exportBtn.addEventListener('click', () => this.exportRsvpCsv());
     }
 
+    // Setup RSVP search input & filter buttons in Organizer Dashboard
+    const rsvpSearchInput = document.getElementById('rsvp-search-input');
+    if (rsvpSearchInput) {
+      rsvpSearchInput.addEventListener('input', (e) => {
+        this.rsvpSearchQuery = (e.target.value || '').toLowerCase().trim();
+        this.renderRsvpDashboard();
+      });
+    }
+
+    const rsvpFilterBtns = document.querySelectorAll('.rsvp-filter-btn');
+    rsvpFilterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        rsvpFilterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.rsvpFilterStatus = btn.getAttribute('data-status') || 'all';
+        this.renderRsvpDashboard();
+      });
+    });
+
+    // Guest Detail Modal Close handlers
+    const detailModal = document.getElementById('guest-detail-modal');
+    const closeDetailBtn = document.getElementById('close-guest-detail-btn');
+    if (closeDetailBtn && detailModal) {
+      closeDetailBtn.addEventListener('click', () => {
+        detailModal.classList.remove('open');
+        detailModal.style.display = 'none';
+      });
+      detailModal.addEventListener('click', (e) => {
+        if (e.target === detailModal) {
+          detailModal.classList.remove('open');
+          detailModal.style.display = 'none';
+        }
+      });
+    }
+
     // Tab 2: Personalized Link Generator inside Organizer Dashboard
     const customGuestInput = document.getElementById('personal-guest-name-input');
     const sendWaBtn = document.getElementById('send-personalized-wa-btn');
@@ -1107,7 +1222,7 @@ END:VCALENDAR`;
         `It would truly mean the world to us to have you by our side on this very special day.\n\n` +
         `Wedding Invitation:\n${targetUrl}\n\n` +
         `We can’t wait to celebrate, share laughter, and create beautiful memories with you! ✨\n\n` +
-        `With love,\nTharaka & Sashini 🤍`;
+        `With love,\nSashini & Tharaka 🤍`;
 
       return { guestName, targetUrl, salutation, waMessage };
     };
@@ -1174,38 +1289,32 @@ END:VCALENDAR`;
   }
 
   renderRsvpDashboard() {
-    const list = JSON.parse(localStorage.getItem('wedding_rsvps') || '[]');
+    let list = [];
+    try {
+      list = JSON.parse(localStorage.getItem('wedding_rsvps') || '[]');
+    } catch (e) {
+      list = [];
+    }
+
     const totalHeadcountEl = document.getElementById('total-attending-headcount');
     const acceptedCountEl = document.getElementById('total-accepted-count');
     const declinedCountEl = document.getElementById('total-declined-count');
     const tbody = document.getElementById('rsvp-table-body');
     const countBadge = document.getElementById('rsvp-table-count');
+    const filterAllCount = document.getElementById('filter-count-all');
+    const filterYesCount = document.getElementById('filter-count-yes');
+    const filterNoCount = document.getElementById('filter-count-no');
 
     let totalHeadcount = 0;
     let accepted = 0;
     let declined = 0;
 
-    if (tbody) tbody.innerHTML = '';
-
-    list.forEach((item, index) => {
-      const isAttending = item.attending === 'yes';
-      if (isAttending) {
+    list.forEach(item => {
+      if (item.attending === 'yes') {
         accepted++;
         totalHeadcount += parseInt(item.guestCount || '1', 10);
       } else {
         declined++;
-      }
-
-      if (tbody) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><strong>${this.escapeHtml(item.name)}</strong></td>
-          <td>${this.escapeHtml(item.contact || 'N/A')}</td>
-          <td><span style="color: ${isAttending ? '#2e7d32' : '#c62828'}; font-weight: 600;">${isAttending ? 'Accepted' : 'Declined'}</span></td>
-          <td>${item.guestCount || 1}</td>
-          <td><button data-idx="${index}" class="delete-rsvp-btn" style="background:none; border:none; color:#c62828; cursor:pointer;">✕</button></td>
-        `;
-        tbody.appendChild(tr);
       }
     });
 
@@ -1213,21 +1322,165 @@ END:VCALENDAR`;
     if (acceptedCountEl) acceptedCountEl.textContent = accepted;
     if (declinedCountEl) declinedCountEl.textContent = declined;
     if (countBadge) countBadge.textContent = list.length;
+    if (filterAllCount) filterAllCount.textContent = list.length;
+    if (filterYesCount) filterYesCount.textContent = accepted;
+    if (filterNoCount) filterNoCount.textContent = declined;
 
-    // Delete handlers
-    document.querySelectorAll('.delete-rsvp-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const idx = parseInt(e.target.getAttribute('data-idx'), 10);
-        list.splice(idx, 1);
-        localStorage.setItem('wedding_rsvps', JSON.stringify(list));
-        this.renderRsvpDashboard();
+    // Filter by status and search query
+    let filtered = list;
+    if (this.rsvpFilterStatus && this.rsvpFilterStatus !== 'all') {
+      filtered = filtered.filter(item => item.attending === this.rsvpFilterStatus);
+    }
+    if (this.rsvpSearchQuery) {
+      const q = this.rsvpSearchQuery;
+      filtered = filtered.filter(item => {
+        const name = (item.name || '').toLowerCase();
+        const contact = (item.contact || '').toLowerCase();
+        return name.includes(q) || contact.includes(q);
+      });
+    }
+
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.8rem;">
+            ${list.length === 0 ? 'No RSVPs recorded yet. Responses will appear here live as guests submit.' : 'No RSVPs match your search/filter.'}
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    filtered.forEach((item, index) => {
+      const isAttending = item.attending === 'yes';
+      const cleanPhone = (item.contact || '').replace(/[^0-9]/g, '');
+      const waPhone = cleanPhone ? (cleanPhone.startsWith('0') ? '94' + cleanPhone.slice(1) : cleanPhone) : '';
+      const rawIdx = list.indexOf(item);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight: 600; color: var(--text-primary);">${this.escapeHtml(item.name)}</div>
+        </td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: nowrap;">
+            <a href="https://wa.me/${waPhone}" target="_blank" title="Chat on WhatsApp" class="table-contact-link wa-link">
+              💬 ${this.escapeHtml(item.contact || 'N/A')}
+            </a>
+            ${cleanPhone ? `<a href="tel:${cleanPhone}" title="Call Guest" class="table-contact-link call-link">📞</a>` : ''}
+          </div>
+        </td>
+        <td>
+          <span class="${isAttending ? 'badge-accepted' : 'badge-declined'}">
+            ${isAttending ? '✅ Accepted' : '❌ Declined'}
+          </span>
+        </td>
+        <td>
+          ${isAttending 
+            ? `<span class="badge-count">${item.guestCount || 1} ${parseInt(item.guestCount || '1', 10) === 1 ? 'Guest' : 'Guests'}</span>` 
+            : '<span style="color: var(--text-muted);">—</span>'}
+        </td>
+        <td style="white-space: nowrap; font-size: 0.72rem; color: var(--text-muted);">
+          ${this.escapeHtml(item.time || 'Recent')}
+        </td>
+        <td>
+          <div style="display: flex; gap: 0.3rem; align-items: center;">
+            <button type="button" class="btn-rsvp-action btn-view-rsvp" data-rsvp-id="${this.escapeHtml(item.id || '')}" data-idx="${rawIdx}" title="View all details">
+              👁️
+            </button>
+            <button type="button" class="btn-rsvp-action btn-del-rsvp" data-rsvp-id="${this.escapeHtml(item.id || '')}" data-idx="${rawIdx}" title="Delete this response">
+              ✕
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // View Details Modal handlers
+    tbody.querySelectorAll('.btn-view-rsvp').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const item = list[idx];
+        if (!item) return;
+
+        const isAttending = item.attending === 'yes';
+        const cleanPhone = (item.contact || '').replace(/[^0-9]/g, '');
+        const waPhone = cleanPhone ? (cleanPhone.startsWith('0') ? '94' + cleanPhone.slice(1) : cleanPhone) : '';
+
+        const modal = document.getElementById('guest-detail-modal');
+        const iconEl = document.getElementById('detail-modal-status-icon');
+        const nameEl = document.getElementById('detail-modal-name');
+        const badgeEl = document.getElementById('detail-modal-status-badge');
+        const countEl = document.getElementById('detail-modal-count');
+        const phoneEl = document.getElementById('detail-modal-phone');
+        const timeEl = document.getElementById('detail-modal-time');
+        const waBtn = document.getElementById('detail-modal-wa-btn');
+        const callBtn = document.getElementById('detail-modal-call-btn');
+
+        if (iconEl) iconEl.textContent = isAttending ? '🎉' : '💐';
+        if (nameEl) nameEl.textContent = item.name;
+        if (badgeEl) {
+          badgeEl.className = isAttending ? 'badge-accepted' : 'badge-declined';
+          badgeEl.textContent = isAttending ? '✅ Joyfully Attending' : '❌ Regretfully Declined';
+        }
+        if (countEl) countEl.textContent = isAttending ? `${item.guestCount || 1} Guest(s)` : '0 (Declined)';
+        if (phoneEl) phoneEl.textContent = item.contact || 'N/A';
+        if (timeEl) timeEl.textContent = item.time || 'N/A';
+
+        if (waBtn) {
+          const defaultMsg = encodeURIComponent(`Hi ${item.name}! 🌸 Thank you for confirming your attendance for Sashini & Tharaka's wedding.`);
+          waBtn.href = waPhone ? `https://wa.me/${waPhone}?text=${defaultMsg}` : '#';
+          waBtn.style.display = waPhone ? 'inline-flex' : 'none';
+        }
+        if (callBtn) {
+          callBtn.href = cleanPhone ? `tel:${cleanPhone}` : '#';
+          callBtn.style.display = cleanPhone ? 'inline-flex' : 'none';
+        }
+
+        if (modal) {
+          modal.style.display = 'flex';
+          modal.classList.add('open');
+        }
       });
     });
 
+    // Delete RSVP handlers
+    tbody.querySelectorAll('.btn-del-rsvp').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const rsvpId = btn.getAttribute('data-rsvp-id');
+        const item = list[idx];
+        const name = item ? item.name : 'this guest';
+
+        if (confirm(`Delete RSVP response for "${name}"?`)) {
+          if (rsvpId && typeof WeddingFirebase !== 'undefined') {
+            const db = WeddingFirebase.getDatabase();
+            if (db) {
+              try { db.ref('rsvps/' + rsvpId).remove(); } catch (e) {}
+            }
+          }
+          list.splice(idx, 1);
+          localStorage.setItem('wedding_rsvps', JSON.stringify(list));
+          this.renderRsvpDashboard();
+        }
+      });
+    });
+
+    // Clear All button handler
     const clearAllBtn = document.getElementById('clear-all-rsvps-btn');
     if (clearAllBtn) {
       clearAllBtn.onclick = () => {
-        if (confirm('Are you sure you want to clear all RSVPs?')) {
+        if (confirm('Are you sure you want to clear ALL RSVPs? This will delete all responses permanently from both cloud and local storage.')) {
+          if (typeof WeddingFirebase !== 'undefined') {
+            const db = WeddingFirebase.getDatabase();
+            if (db) {
+              try { db.ref('rsvps').remove(); } catch (e) {}
+            }
+          }
           localStorage.removeItem('wedding_rsvps');
           this.renderRsvpDashboard();
         }
@@ -1236,22 +1489,33 @@ END:VCALENDAR`;
   }
 
   exportRsvpCsv() {
-    const list = JSON.parse(localStorage.getItem('wedding_rsvps') || '[]');
+    let list = [];
+    try {
+      list = JSON.parse(localStorage.getItem('wedding_rsvps') || '[]');
+    } catch (e) {
+      list = [];
+    }
+
     if (!list.length) {
       alert('No RSVPs recorded yet to export.');
       return;
     }
 
-    let csv = "Name,Contact,Attending,Guests,Date\n";
+    let csv = "Guest Name,Contact Number,Attendance Status,Attending Guests,Registration Date & Time\n";
     list.forEach(r => {
-      csv += `"${r.name}","${r.contact}","${r.attending}","${r.guestCount}","${r.time}"\n`;
+      const name = (r.name || '').replace(/"/g, '""');
+      const contact = (r.contact || '').replace(/"/g, '""');
+      const status = r.attending === 'yes' ? 'Joyfully Accept' : 'Regretfully Decline';
+      const count = r.attending === 'yes' ? (r.guestCount || 1) : 0;
+      const time = (r.time || '').replace(/"/g, '""');
+      csv += `"${name}","${contact}","${status}","${count}","${time}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Tharaka_Sashini_Wedding_RSVPs_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `Sashini_Tharaka_Wedding_RSVPs_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
