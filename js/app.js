@@ -334,13 +334,13 @@ END:VCALENDAR`;
 
     if (waBtn1) {
       waBtn1.addEventListener('click', () => {
-        if (waHint1) waHint1.textContent = '✅ Sent to 078 230 4701';
+        if (waHint1) waHint1.textContent = '✅ Sent to Sashini (078 230 4701)';
       });
     }
     if (waBtn2) {
       waBtn2.addEventListener('click', () => {
         if (waHint2) {
-          waHint2.textContent = '✅ Sent to 070 511 8484';
+          waHint2.textContent = '✅ Sent to Tharaka (070 511 8484)';
           waBtn2.classList.remove('highlight-next');
         }
       });
@@ -427,13 +427,13 @@ END:VCALENDAR`;
       if (waBtn1) waBtn1.href = waUrl1;
       if (waBtn2) waBtn2.href = waUrl2;
 
-      // Automatically open the first number (078 230 4701) in WhatsApp
+      // Automatically open the first number (078 230 4701 - Sashini) in WhatsApp
       try {
         window.open(waUrl1, '_blank');
         if (waHint1) waHint1.textContent = '✅ WhatsApp Opened (Sent)';
-        if (waHint2) waHint2.textContent = '👉 Tap to Send to 070 511 8484 too';
+        if (waHint2) waHint2.textContent = '👉 Tap to Send to Tharaka (070 511 8484) too';
       } catch (e) {
-        if (waHint1) waHint1.textContent = '👉 Tap to Send to 078 230 4701';
+        if (waHint1) waHint1.textContent = '👉 Tap to Send to Sashini (078 230 4701)';
       }
     };
 

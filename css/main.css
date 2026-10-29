@@ -1729,12 +1729,23 @@ section {
 .btn-wa-phone {
   font-weight: 700;
   letter-spacing: 0.05em;
+  font-size: 0.96rem;
+}
+
+.btn-wa-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #ffffff;
+  opacity: 0.95;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
 }
 
 .btn-wa-hint {
-  font-size: 0.75rem;
-  opacity: 0.9;
+  font-size: 0.74rem;
+  opacity: 0.88;
   font-weight: 400;
+  margin-top: 2px;
 }
 
 .rsvp-wa-action-btn.highlight-next {
